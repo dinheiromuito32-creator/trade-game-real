@@ -8,7 +8,7 @@ ARQUITETURA.md).
 Fluxo:
 1. /start → generate_link_token() cria um token único, válido 10 min,
    guarda em telegramLinks/{token} com status "pending".
-2. Bot manda ao user: {APP_BASE_URL}/link?t={token}
+2. Bot manda ao user: {APP_BASE_URL}/?t={token}
 3. User abre no telemóvel (já logado no app), confirma com 1 toque.
    Essa confirmação é feita pelo PRÓPRIO APP (não por este bot) —
    o app escreve telegramLinks/{token}.status = "confirmed" e
@@ -66,7 +66,7 @@ def generate_link_token(chat_id: int) -> tuple[str, str]:
     })
 
     logger.info(f"Token de vínculo gerado para chat_id={chat_id}")
-    return token, f"/link?t={token}"
+    return token, f"/?t={token}"
 
 
 def is_token_expired(snapshot_data: dict) -> bool:
@@ -195,4 +195,3 @@ def get_uid_for_chat_id(chat_id: int) -> str | None:
     except Exception as e:
         logger.error(f"get_uid_for_chat_id erro: {e}")
         return None
-       
