@@ -4,8 +4,6 @@ bot.py — Cless Cripto Bot (entrypoint completo)
 
 import asyncio
 import logging
-import os
-import random
 from datetime import datetime, timezone, timedelta
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -24,110 +22,6 @@ import signals_engine
 import fx
 
 logger = logging.getLogger("cless_bot.main")
-
-
-# ── Configuração de Marketing ──────────────────────────────────────────────
-
-# Fotos de marketing (resultados, dinheiro, lifestyle)
-START_PHOTOS = [
-    os.getenv("START_PHOTO_1", "").strip(),
-    os.getenv("START_PHOTO_2", "").strip(),
-]
-
-# Foto pessoal do fundador — legenda de autoridade
-FOUNDER_PHOTO = os.getenv("FOUNDER_PHOTO", "").strip()
-
-# Vídeos promocionais
-START_VIDEOS = [
-    os.getenv("START_VIDEO_1", "").strip(),
-    os.getenv("START_VIDEO_2", "").strip(),
-]
-
-# Legendas para fotos de marketing
-PHOTO_CAPTIONS = [
-    "💸 *Isto não foi sorte.*\nFoi análise, disciplina e as ferramentas certas.\n\n📲 A Cless Cripto STP está a mudar a forma como STP faz dinheiro. 🇸🇹",
-    "🔥 Enquanto a maioria dorme, os traders da Cless Cripto estão a lucrar.\n\n📊 Sinais reais. Resultados reais. 💎 Junta-te a nós.",
-    "💰 O mercado cripto *nunca fecha.*\nA tua oportunidade está sempre aberta. ⏰\n\n⚡ Cless Cripto STP — trading profissional ao teu alcance. 🚀",
-    "📈 Pequenos investimentos consistentes criam *grandes patrimónios.*\n\n🎯 Começa hoje. A Cless Cripto guia-te em cada passo. 💪",
-    "🏆 *Os resultados falam por si.*\n\nO que estás à espera? ⏳\n🚀 Cless Cripto STP — onde o conhecimento encontra o lucro. 💰",
-    "💎 Não precisas de muito para começar.\nPrecisas das *pessoas certas.* 🤝\n\n🔐 Segurança, transparência e lucro real — Cless Cripto STP. 🇸🇹",
-    "⚡ *O cripto não espera por ninguém.*\n\nEnquanto hesitas, outros estão a lucrar. 📈\n💡 A hora certa é sempre agora. — Cless Cripto STP",
-    "🌍 São Tomé e Príncipe já chegou ao mundo cripto. 🇸🇹💚\n\n📲 Sê parte da revolução financeira.\n🔥 Cless Cripto STP — feito por nós, para nós.",
-]
-
-# Legendas para vídeos
-VIDEO_CAPTIONS = [
-    "🎬 *Vê como funciona na prática.*\nSimples, rápido e rentável. ✅\n\n📲 Cless Cripto STP — a plataforma que STP estava à espera. 🇸🇹",
-    "⚡ *30 segundos* que podem mudar a tua vida financeira.\n\n💡 Junta-te à revolução cripto em São Tomé e Príncipe. 🚀",
-    "🚀 Do zero ao primeiro lucro.\nÉ mais simples do que pensas. 💪\n\n🏆 Cless Cripto STP — trading real para pessoas reais.",
-    "🔥 Enquanto assistes, os nossos traders estão a lucrar. 📊\n\n💰 Não fiques de fora.\n👉 *Abre a tua conta hoje.* — Cless Cripto STP 🇸🇹",
-    "📱 *Um telemóvel. Uma conta. Infinitas oportunidades.* 💫\n\n🎯 O cripto está ao alcance de todos em STP.\n⚡ Cless Cripto — começa agora.",
-]
-
-# Legenda da foto pessoal do fundador
-FOUNDER_CAPTION = (
-    "👤 *Quem está por trás da Cless Cripto?*\n\n"
-    "Sou o *Clessio* — trader autodidata desde jovem, "
-    "pioneiro do cripto em São Tomé e Príncipe. 🇸🇹\n\n"
-    "📚 Aprendi na prática, errei, corrigi.\n"
-    "💡 Hoje ajudo outros a navegar o mercado com segurança e confiança.\n\n"
-    "🔥 A Cless Cripto não é só uma plataforma —\n"
-    "é uma *comunidade* de pessoas que querem crescer juntas. 💎\n\n"
-    "📲 *Estou aqui. Vamos crescer juntos.* 🚀"
-)
-
-
-# ── Funções de Marketing ───────────────────────────────────────────────────
-
-async def send_start_media(bot, chat_id: int) -> None:
-    """
-    Envia sequência de media de marketing:
-    1. Foto de marketing (resultados/lifestyle) com legenda persuasiva
-    2. Foto pessoal do fundador com legenda de autoridade
-    3. Vídeo promocional com legenda de acção
-    Cada item só é enviado se a variável correspondente estiver configurada.
-    """
-    try:
-        # 1. Foto de marketing
-        photos = [p for p in START_PHOTOS if p]
-        if photos:
-            try:
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=random.choice(photos),
-                    caption=random.choice(PHOTO_CAPTIONS),
-                    parse_mode="Markdown",
-                )
-            except Exception as e:
-                logger.warning(f"Marketing foto erro: {e}")
-
-        # 2. Foto do fundador
-        if FOUNDER_PHOTO:
-            try:
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=FOUNDER_PHOTO,
-                    caption=FOUNDER_CAPTION,
-                    parse_mode="Markdown",
-                )
-            except Exception as e:
-                logger.warning(f"Founder foto erro: {e}")
-
-        # 3. Vídeo
-        videos = [v for v in START_VIDEOS if v]
-        if videos:
-            try:
-                await bot.send_video(
-                    chat_id=chat_id,
-                    video=random.choice(videos),
-                    caption=random.choice(VIDEO_CAPTIONS),
-                    parse_mode="Markdown",
-                )
-            except Exception as e:
-                logger.warning(f"Marketing vídeo erro: {e}")
-
-    except Exception as e:
-        logger.error(f"send_start_media: {e}")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -165,9 +59,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     first_name = update.effective_user.first_name or "trader"
     if account_linking.get_uid_for_chat_id(chat_id):
         await update.message.reply_text(
-            f"Olá de novo, {first_name}! ✅\nUsa /ajuda para veres todos os comandos."
+            f"Olá de novo, {first_name}! ✅\n\n"
+            "🚀 O mercado não parou enquanto estiveste fora — e a tua conta continua pronta a operar.\n\n"
+            "Usa /ajuda para veres todos os comandos.",
+            parse_mode="Markdown",
         )
-        await send_start_media(context.bot, chat_id)
         return
     token, link_path = account_linking.generate_link_token(chat_id)
     link_url = f"{config.APP_BASE_URL}{link_path}"
@@ -178,12 +74,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"👋 Olá, *{first_name}*!\n\n"
         "🚀 Bem-vindo ao bot oficial da *Cless Cripto STP* — "
         "a primeira plataforma de trading cripto de São Tomé e Príncipe.\n\n"
+        "📊 Sinais em tempo real, execução instantânea e um mercado que nunca fecha — "
+        "tudo isto sem saíres do Telegram.\n\n"
         "🔗 Para começares, vincula a tua conta em 1 clique:\n"
         "_(Abre o app com sessão iniciada e confirma)_\n\n"
         f"⏱ O link expira em {account_linking.TOKEN_TTL_MINUTES} minutos.",
         reply_markup=keyboard, parse_mode="Markdown",
     )
-    await send_start_media(context.bot, chat_id)
     asyncio.create_task(_poll_link_confirmation(token, chat_id, context))
 
 
@@ -1046,7 +943,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.edit_message_text(
                 f"₿ {count} depósito(s) pendente(s) enviado(s) acima. Valida o TXID no block "
-                f"explorer e usa /confirmarcripto <ID> <valorSTN> para aprovar."
+                f"explorer e usa /confirmarcripto <ID> <quantidade> para aprovar."
             )
 
     elif data == "admin_ranking":
@@ -1877,30 +1774,45 @@ async def cripto_confirma_callback(update: Update, context: ContextTypes.DEFAULT
 @_require_admin
 async def confirmarcripto_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    /confirmarcripto <ID> <valorSTN> — só admin. Usado depois de validar
-    o TXID no block explorer (link enviado junto com o pedido pendente).
+    /confirmarcripto <ID> <quantidade> [precoEntradaEUR] — só admin.
+    Usado depois de validar o TXID no block explorer (link enviado
+    junto com o pedido pendente). A quantidade é sempre na própria
+    moeda do depósito (ex: 0.003 para BTC, 150 para USDT) — o admin
+    já não indica um valor em STN, porque o depósito agora credita a
+    crypto nativa diretamente na carteira do user.
+    precoEntradaEUR é opcional: só serve para o Portfolio ter um
+    avgEntry sensato (ex: preço de mercado no momento do depósito).
+    Sem preço (comum em USDT/USDC), avgEntry fica a 0.
     Delega toda a lógica de crédito para admin_flows.confirm_crypto_deposit,
     e só trata de enviar as duas mensagens finais (ao admin e ao user).
     """
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
-            "Uso: `/confirmarcripto <ID_do_depósito> <valorSTN>`\n"
+            "Uso: `/confirmarcripto <ID_do_depósito> <quantidade> [precoEntradaEUR]`\n"
+            "A quantidade é sempre na própria moeda (ex: 0.003 para BTC, 150 para USDT).\n"
             "Encontras o ID na mensagem de pedido pendente.",
             parse_mode="Markdown",
         )
         return
     dep_id = args[0]
     try:
-        amount_stn_gross = float(args[1].replace(",", "."))
+        amount_coin_gross = float(args[1].replace(",", "."))
     except ValueError:
-        await update.message.reply_text("O valorSTN tem de ser um número, ex: 850")
+        await update.message.reply_text("A quantidade tem de ser um número, ex: 0.003")
         return
-    if amount_stn_gross <= 0:
-        await update.message.reply_text("O valorSTN tem de ser maior que zero.")
+    if amount_coin_gross <= 0:
+        await update.message.reply_text("A quantidade tem de ser maior que zero.")
         return
+    entry_price_eur = 0.0
+    if len(args) >= 3:
+        try:
+            entry_price_eur = float(args[2].replace(",", "."))
+        except ValueError:
+            await update.message.reply_text("O precoEntradaEUR tem de ser um número, ex: 61000")
+            return
 
-    result = await admin_flows.confirm_crypto_deposit(dep_id, update.effective_chat.id, amount_stn_gross)
+    result = await admin_flows.confirm_crypto_deposit(dep_id, update.effective_chat.id, amount_coin_gross, entry_price_eur)
     if not result.get("ok"):
         await update.message.reply_text(f"⚠️ {result.get('message')}")
         return
