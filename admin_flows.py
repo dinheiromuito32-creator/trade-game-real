@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, CallbackQueryHandler
+from firebase_admin import firestore
 from google.cloud.firestore_v1 import Increment as firestore_increment
 
 from firestore_client import get_db
@@ -543,12 +544,12 @@ async def _reject_remittance(rem_id: str, query) -> None:
 #
 # IMPORTANTE: ao contrário do bónus e da remessa, este fluxo não pode
 # ser aprovado com um único clique — o admin precisa de abrir o block
-# explorer, confirmar o TXID, e SÓ DEPOIS sabe o valor exato em STN a
-# creditar (o preço da cripto no momento da confirmação é o que conta,
-# não o do momento do pedido). Por isso, o botão inline só cobre a
-# REJEIÇÃO; a aprovação é feita com o comando /confirmarcripto
-# <ID> <valorSTN>, depois de o admin validar manualmente. Mesma lógica
-# de fbConfirmCryptoDeposit() no index.html.
+# explorer e confirmar o TXID e a quantidade exata recebida antes de
+# creditar. Por isso, o botão inline só cobre a REJEIÇÃO; a aprovação
+# é feita com o comando /confirmarcripto <ID> <quantidade>, depois de
+# o admin validar manualmente — a quantidade é sempre na própria
+# moeda (ex: 0.003 BTC, 150 USDT), nunca convertida para STN. Mesma
+# lógica de fbConfirmCryptoDeposit() no index.html.
 
 async def send_pending_crypto_deposits_to_admins(bot: Bot) -> int:
     """Lê depósitos de cripto com status 'pending' e envia a cada admin.
@@ -606,12 +607,19 @@ async def handle_crypto_deposit_callback(update: Update, context: ContextTypes.D
         await _reject_crypto_deposit(dep_id, query)
 
 
-async def confirm_crypto_deposit(dep_id: str, admin_chat_id: int, amount_stn_gross: float) -> dict:
+async def confirm_crypto_deposit(dep_id: str, admin_chat_id: int, amount_coin_gross: float, entry_price_eur: float = 0.0) -> dict:
     """
-    Chamado pelo comando /confirmarcripto <ID> <valorSTN>. Espelha
-    fbConfirmCryptoDeposit(): calcula a taxa de 1% (mesma taxa dos
-    outros depósitos), credita o líquido em STN, regista a transação,
-    e notifica o user por DM.
+    Chamado pelo comando /confirmarcripto <ID> <quantidadeCoin> [precoEntradaEUR].
+    Espelha fbConfirmCryptoDeposit(): credita a PRÓPRIA crypto em
+    port[coin].qty (não converte para STN) — a mesma mudança já feita
+    no index.html. amount_coin_gross vem na mesma unidade da crypto
+    (ex: 150 USDT, 0.003 BTC); o admin confirma/ajusta contra o block
+    explorer, tal como antes, só que agora na moeda nativa em vez de STN.
+
+    entry_price_eur é opcional: um depósito on-chain não tem "preço de
+    entrada" de mercado, por isso serve só para o PnL não ficar
+    indefinido no Portfolio (mesmo comportamento do HTML — sem preço,
+    ex. USDT/USDC que não têm par na Binance, avgEntry fica a 0).
 
     Devolve um dict {ok: bool, message: str, ...} em vez de levantar
     exceção — o comando no bot.py decide como mostrar o resultado.
@@ -631,27 +639,50 @@ async def confirm_crypto_deposit(dep_id: str, admin_chat_id: int, amount_stn_gro
     if not uid:
         return {"ok": False, "message": "Depósito sem uid associado — não é possível creditar."}
 
-    fee = amount_stn_gross * 0.01  # mesma taxa de 1% dos outros depósitos
-    amount_net = amount_stn_gross - fee
+    fee = amount_coin_gross * 0.01  # mesma taxa de 1% dos outros depósitos, agora em unidades da crypto
+    amount_net = amount_coin_gross - fee
     now = datetime.now(timezone.utc)
+    user_ref = db.collection("users").document(uid)
 
-    dep_ref.update({
-        "status": "confirmed",
-        "confirmedBy": admin_chat_id,
-        "confirmedAt": now,
-        "amountSTN": amount_stn_gross,
-        "fee": fee,
-        "amountNet": amount_net,
-    })
-    db.collection("users").document(uid).update({"stnBal": firestore_increment(amount_net)})
+    # Transação: lê o port[coin] atual do user e escreve o novo qty/avgEntry
+    # numa única operação atómica — mesma garantia que o runTransaction do
+    # HTML dá contra leituras concorrentes (ex: o user a negociar ao mesmo
+    # tempo que o admin confirma o depósito).
+    @firestore.transactional
+    def _credit(transaction):
+        user_snap = user_ref.get(transaction=transaction)
+        dep_snap = dep_ref.get(transaction=transaction)
+        if not user_snap.exists:
+            raise ValueError("Utilizador não encontrado")
+        if not dep_snap.exists or dep_snap.to_dict().get("status") != "pending":
+            raise ValueError("Depósito já processado")
+        user_data = user_snap.to_dict() or {}
+        port = user_data.get("port", {}) or {}
+        pv = port.get(coin) or {"qty": 0, "avgEntry": 0, "totalCostEUR": 0, "payCur": "STN", "sl": None, "tp": None}
+        new_qty = (pv.get("qty") or 0) + amount_net
+        new_cost = (pv.get("totalCostEUR") or 0) + amount_net * entry_price_eur
+        new_avg_entry = (new_cost / new_qty) if new_qty > 0 else 0
+        transaction.update(user_ref, {
+            f"port.{coin}": {**pv, "qty": new_qty, "avgEntry": new_avg_entry, "totalCostEUR": new_cost}
+        })
+        transaction.update(dep_ref, {
+            "status": "confirmed", "confirmedBy": admin_chat_id, "confirmedAt": now,
+            "amountCoin": amount_coin_gross, "fee": fee, "amountNet": amount_net,
+        })
+
+    try:
+        _credit(db.transaction())
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
+
     db.collection("transactions").document().set({
         "uid": uid, "type": "deposit", "method": "crypto", "coin": coin,
         "network": dep.get("network", ""), "txid": dep.get("txid", ""),
-        "amount": amount_stn_gross, "fee": fee, "amountNet": amount_net,
+        "amountCoin": amount_coin_gross, "fee": fee, "amountNet": amount_net,
         "confirmedBy": admin_chat_id, "depositId": dep_id, "ts": now,
     })
 
-    logger.info(f"Depósito cripto {dep_id} confirmado: uid={uid} coin={coin} amountNet={amount_net} STN")
+    logger.info(f"Depósito cripto {dep_id} confirmado: uid={uid} coin={coin} amountNet={amount_net} {coin}")
 
     # A notificação ao user é enviada pelo próprio comando no bot.py
     # (confirmarcripto_command), que já tem acesso a context.bot — esta
