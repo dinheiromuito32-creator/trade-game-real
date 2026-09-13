@@ -478,7 +478,7 @@ def crypto_deposit_submitted_dm() -> str:
         "✅ *Pedido de Depósito Registado*",
         "━━━━━━━━━━━━━━━━━━━━━",
         "O admin vai confirmar a transação no block explorer e creditar",
-        "o saldo STN correspondente.",
+        "a própria crypto diretamente na tua carteira.",
         f"Registado em: {now.strftime('%d/%m/%Y %H:%M')} UTC",
         "━━━━━━━━━━━━━━━━━━━━━",
         "_Normalmente demora até 1-2 confirmações da rede._",
@@ -499,16 +499,17 @@ def crypto_deposit_admin_preview(dep: dict, dep_id: str) -> str:
         f"`ID: {dep_id}`",
         "",
         "_Confirma o TXID no block explorer antes de aprovar. Usa "
-        "/confirmarcripto <ID> <valorSTN> depois de validares._",
+        "/confirmarcripto <ID> <quantidade> depois de validares — a "
+        "quantidade é sempre na própria moeda (ex: 0.003 para BTC)._",
     ])
 
 
-def crypto_deposit_approved_dm(coin: str, amount_stn: float) -> str:
+def crypto_deposit_approved_dm(coin: str, amount_net: float) -> str:
     now = datetime.now(timezone.utc)
     return "\n".join([
         f"✅ *Depósito de {coin} Confirmado*",
         "━━━━━━━━━━━━━━━━━━━━━",
-        f"*{_fmt_stn(amount_stn)} STN* foram creditados no teu saldo.",
+        f"*{amount_net} {coin}* foram creditados na tua carteira.",
         f"Confirmado em: {now.strftime('%d/%m/%Y %H:%M')} UTC",
         "━━━━━━━━━━━━━━━━━━━━━",
         "_Usa /meusaldo para conferir._",
@@ -525,4 +526,3 @@ def crypto_deposit_rejected_dm(coin: str) -> str:
         "_Contacta o suporte se achares que é um engano._",
         "📊 Cless Cripto · STP",
     ])
-
